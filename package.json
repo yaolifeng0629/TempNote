@@ -1,0 +1,243 @@
+{
+    "name": "tempnote",
+    "displayName": "TempNote - 临时便签",
+    "description": "快速创建临时文件，用于记录想法、测试代码、粘贴数据等，支持项目级别的持久化存储",
+    "version": "1.1.0",
+    "engines": {
+        "vscode": "^1.74.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "keywords": [
+        "temp",
+        "note",
+        "temporary",
+        "scratch",
+        "便签",
+        "临时"
+    ],
+    "activationEvents": [
+        "onCommand:tempnote.newTempNote",
+        "onCommand:tempnote.newTempNoteWithLanguage",
+        "onView:tempnoteExplorer"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "views": {
+            "tempnoteExplorer": [
+                {
+                    "id": "tempnoteExplorer",
+                    "name": "临时便签",
+                    "when": "workspaceFolderCount > 0"
+                }
+            ]
+        },
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "tempnoteExplorer",
+                    "title": "TempNote",
+                    "icon": "$(note)"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "tempnote.newTempNote",
+                "title": "新建临时便签",
+                "category": "TempNote",
+                "icon": "$(new-file)"
+            },
+            {
+                "command": "tempnote.newTempNoteWithLanguage",
+                "title": "新建临时便签 (选择语言)",
+                "category": "TempNote",
+                "icon": "$(file-code)"
+            },
+            {
+                "command": "tempnote.newTempMarkdown",
+                "title": "新建临时Markdown",
+                "category": "TempNote",
+                "icon": "$(markdown)"
+            },
+            {
+                "command": "tempnote.newTempJSON",
+                "title": "新建临时JSON",
+                "category": "TempNote",
+                "icon": "$(json)"
+            },
+            {
+                "command": "tempnote.clearAllTempNotes",
+                "title": "清空所有临时便签",
+                "category": "TempNote",
+                "icon": "$(clear-all)"
+            },
+            {
+                "command": "tempnote.refreshExplorer",
+                "title": "刷新",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "tempnote.openNote",
+                "title": "打开便签",
+                "icon": "$(go-to-file)"
+            },
+            {
+                "command": "tempnote.deleteNote",
+                "title": "删除便签",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "tempnote.renameNote",
+                "title": "重命名便签",
+                "icon": "$(edit)"
+            },
+            {
+                "command": "tempnote.togglePersistence",
+                "title": "切换持久化模式",
+                "icon": "$(save)"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "tempnote.newTempNote",
+                "key": "ctrl+shift+t",
+                "mac": "cmd+shift+t",
+                "when": "editorTextFocus || !editorFocus"
+            },
+            {
+                "command": "tempnote.newTempNoteWithLanguage",
+                "key": "ctrl+shift+alt+t",
+                "mac": "cmd+shift+alt+t"
+            }
+        ],
+        "menus": {
+            "commandPalette": [
+                {
+                    "command": "tempnote.newTempNote"
+                },
+                {
+                    "command": "tempnote.newTempNoteWithLanguage"
+                },
+                {
+                    "command": "tempnote.newTempMarkdown"
+                },
+                {
+                    "command": "tempnote.newTempJSON"
+                },
+                {
+                    "command": "tempnote.clearAllTempNotes"
+                },
+                {
+                    "command": "tempnote.togglePersistence"
+                }
+            ],
+            "editor/title": [
+                {
+                    "command": "tempnote.newTempNote",
+                    "when": "resourceScheme == tempnote",
+                    "group": "navigation"
+                }
+            ],
+            "view/title": [
+                {
+                    "command": "tempnote.newTempNote",
+                    "when": "view == tempnoteExplorer",
+                    "group": "navigation"
+                },
+                {
+                    "command": "tempnote.newTempNoteWithLanguage",
+                    "when": "view == tempnoteExplorer",
+                    "group": "navigation"
+                },
+                {
+                    "command": "tempnote.refreshExplorer",
+                    "when": "view == tempnoteExplorer",
+                    "group": "navigation"
+                },
+                {
+                    "command": "tempnote.togglePersistence",
+                    "when": "view == tempnoteExplorer",
+                    "group": "navigation"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "tempnote.openNote",
+                    "when": "view == tempnoteExplorer && viewItem == tempNote",
+                    "group": "inline"
+                },
+                {
+                    "command": "tempnote.renameNote",
+                    "when": "view == tempnoteExplorer && viewItem == tempNote",
+                    "group": "inline"
+                },
+                {
+                    "command": "tempnote.deleteNote",
+                    "when": "view == tempnoteExplorer && viewItem == tempNote",
+                    "group": "inline"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "TempNote 设置",
+            "properties": {
+                "tempnote.defaultLanguage": {
+                    "type": "string",
+                    "default": "plaintext",
+                    "description": "默认语言模式",
+                    "enum": [
+                        "plaintext",
+                        "javascript",
+                        "typescript",
+                        "python",
+                        "java",
+                        "cpp",
+                        "csharp",
+                        "go",
+                        "rust",
+                        "php",
+                        "html",
+                        "css",
+                        "json",
+                        "xml",
+                        "yaml",
+                        "markdown",
+                        "sql"
+                    ]
+                },
+                "tempnote.showWelcomeText": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "在新建临时便签时显示欢迎文本"
+                },
+                "tempnote.autoNumber": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "自动为临时便签编号"
+                },
+                "tempnote.persistentMode": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "启用持久化模式，便签将保存到项目中直到手动删除"
+                },
+                "tempnote.storageLocation": {
+                    "type": "string",
+                    "default": ".vscode/tempnotes",
+                    "description": "持久化存储位置（相对于工作区根目录）"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.74.0",
+        "@types/node": "16.x",
+        "typescript": "^4.9.4"
+    }
+}
