@@ -9,7 +9,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/yaolifeng0629/Health-Reminder"
+        "url": "https://github.com/yaolifeng0629/TempNote"
     },
     "icon": "images/logo.png",
     "categories": [
@@ -240,9 +240,7 @@
         "vscode:prepublish": "pnpm run compile",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
-        "pretest": "pnpm run compile && pnpm run lint",
-        "lint": "eslint src",
-        "test": "vscode-test"
+        "lint": "eslint src"
     },
     "devDependencies": {
         "@types/vscode": "^1.100.0",
