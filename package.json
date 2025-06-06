@@ -3,9 +3,15 @@
     "displayName": "TempNote",
     "description": "快速创建临时文件，用于记录想法、测试代码、粘贴数据等，支持项目级别的持久化存储",
     "version": "0.0.1",
+    "publisher": "Immerse",
     "engines": {
         "vscode": "^1.100.0"
     },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/yaolifeng0629/Health-Reminder"
+    },
+    "icon": "images/logo.png",
     "categories": [
         "Other"
     ],

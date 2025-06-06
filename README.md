@@ -2,8 +2,6 @@
 
 一个轻量级的 VS Code 插件，提供快速创建临时文件的功能，用于记录临时想法、测试代码片段、粘贴临时数据等。支持临时模式和持久化模式，满足不同使用场景的需求。
 
-[中文](/README.md) | [English](/README.en.md)
-
 ## 关于作者
 
 -   作者：[Immerse](https://yaolifeng.com)
