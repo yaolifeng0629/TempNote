@@ -60,13 +60,66 @@ export class TempNoteEditorProvider {
      * 打开临时便签
      */
     async openTempNote(noteId: string): Promise<void> {
-        const filePath = this.tempFiles.get(noteId);
+        let filePath = this.tempFiles.get(noteId);
+
         if (!filePath) {
-            throw new Error(`找不到便签: ${noteId}`);
+            // 尝试在临时目录中查找文件
+            const files = fs.readdirSync(TEMP_DIR);
+            const targetFile = files.find(file => file.startsWith(noteId + '.'));
+
+            if (targetFile) {
+                filePath = path.join(TEMP_DIR, targetFile);
+                // 找到了文件，将其添加到映射中
+                this.tempFiles.set(noteId, filePath);
+            } else {
+                // 如果在工作区有持久化存储，尝试在工作区查找
+                if (vscode.workspace.workspaceFolders) {
+                    const config = vscode.workspace.getConfiguration('tempnote');
+                    const storageLocation = config.get<string>('storageLocation', '.vscode/tempnotes');
+                    const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                    const storageDir = path.join(workspaceRoot, storageLocation);
+
+                    if (fs.existsSync(storageDir)) {
+                        const workspaceFiles = fs.readdirSync(storageDir);
+
+                        // 读取每个文件查找匹配的noteId
+                        for (const file of workspaceFiles) {
+                            const fullPath = path.join(storageDir, file);
+                            const content = fs.readFileSync(fullPath, 'utf8');
+                            const metadataMatch = content.match(/<!-- TempNote Metadata: (.*?) -->/);
+
+                            if (metadataMatch) {
+                                try {
+                                    const metadata = JSON.parse(metadataMatch[1]);
+                                    if (metadata.id === noteId) {
+                                        filePath = fullPath;
+                                        this.tempFiles.set(noteId, filePath);
+                                        break;
+                                    }
+                                } catch (e) {
+                                    console.error(`解析文件元数据失败: ${file}`, e);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!filePath) {
+                throw new Error(`找不到便签: ${noteId}`);
+            }
         }
 
         const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
         await vscode.window.showTextDocument(document, vscode.ViewColumn.Active);
+    }
+
+    /**
+     * 注册临时文件路径
+     * 用于从磁盘加载便签时，将文件路径注册到tempFiles映射中
+     */
+    registerTempFile(noteId: string, filePath: string): void {
+        this.tempFiles.set(noteId, filePath);
     }
 
     /**

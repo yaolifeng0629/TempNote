@@ -235,6 +235,9 @@ class TempNoteProvider {
                             persistent: true,
                         };
                         this.tempNotes.set(metadata.id, noteData);
+                        // 重要：将文件路径注册到编辑器提供者的tempFiles映射中
+                        // 这样双击打开时才能找到对应的文件
+                        this.editorProvider.registerTempFile(metadata.id, filePath);
                         // 更新计数器
                         const match = metadata.id.match(/temp-note-(\d+)/);
                         if (match) {
