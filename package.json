@@ -194,11 +194,6 @@
             ],
             "view/item/context": [
                 {
-                    "command": "tempnote.openNote",
-                    "when": "view == tempnoteExplorer && viewItem == tempNote",
-                    "group": "inline"
-                },
-                {
                     "command": "tempnote.renameNote",
                     "when": "view == tempnoteExplorer && viewItem == tempNote",
                     "group": "inline"
@@ -254,7 +249,7 @@
                 },
                 "tempnote.persistentMode": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "启用持久化模式，便签将保存到项目中直到手动删除"
                 },
                 "tempnote.storageLocation": {

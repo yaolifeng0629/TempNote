@@ -46,14 +46,18 @@ class TempNoteExplorer {
         if (!element) {
             const notes = this.tempNoteProvider.getAllTempNotes();
             return Promise.resolve(notes.map(note => {
-                const item = new vscode.TreeItem(note.title, vscode.TreeItemCollapsibleState.None); // 类型断言
+                // 获取文件扩展名
+                const extension = this.tempNoteProvider.getFileExtension(note.language);
+                // 创建显示名称，包含扩展名
+                const displayName = `${note.title}.${extension}`;
+                const item = new vscode.TreeItem(displayName, vscode.TreeItemCollapsibleState.None);
                 // 立即设置 noteData
                 item.noteData = note;
-                item.tooltip = `${note.title}\n创建时间: ${new Date(note.created).toLocaleString('zh-CN')}\n语言: ${note.language}\n${note.persistent ? '持久化' : '临时'}`;
-                item.description = `${note.language} ${note.persistent ? '📌' : '⏱️'}`;
+                item.tooltip = `${note.title}.${extension}\n创建时间: ${new Date(note.created).toLocaleString('zh-CN')}\n语言: ${note.language}\n${note.persistent ? '持久化存储' : '临时存储'}`;
+                item.description = `${note.persistent ? '📌' : '⏱️'}`;
                 item.contextValue = 'tempNote';
-                item.iconPath = this.getIconForLanguage(note.language);
-                // 设置点击事件
+                item.iconPath = this.getIconForLanguage(note.language, note.persistent);
+                // 设置双击打开事件
                 item.command = {
                     command: 'tempnote.openNote',
                     title: '打开便签',
@@ -64,7 +68,7 @@ class TempNoteExplorer {
         }
         return Promise.resolve([]);
     }
-    getIconForLanguage(language) {
+    getIconForLanguage(language, isPersistent = false) {
         const iconMap = {
             javascript: 'file-code',
             typescript: 'file-code',
@@ -84,7 +88,11 @@ class TempNoteExplorer {
             sql: 'database',
             plaintext: 'file-text',
         };
-        return new vscode.ThemeIcon(iconMap[language] || 'file-text');
+        // 为持久化便签使用不同颜色
+        const iconColor = isPersistent ?
+            new vscode.ThemeColor('charts.blue') :
+            new vscode.ThemeColor('charts.orange');
+        return new vscode.ThemeIcon(iconMap[language] || 'file-text', iconColor);
     }
 }
 // 使用原来的TempNoteProvider来保持与现有代码的兼容性
@@ -314,12 +322,14 @@ class TempNoteProvider {
             yaml: 'yml',
             markdown: 'md',
             sql: 'sql',
+            plaintext: 'txt'
         };
         return extensions[language] || 'txt';
     }
 }
 let tempNoteProvider;
 let tempNoteExplorer;
+let statusBarItem;
 function activate(context) {
     console.log('TempNote 插件已激活');
     // 创建临时便签提供者
@@ -328,6 +338,11 @@ function activate(context) {
     tempNoteProvider.loadFromDisk();
     // 创建侧边栏浏览器
     tempNoteExplorer = new TempNoteExplorer(tempNoteProvider);
+    // 创建状态栏项目
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    updateStatusBar();
+    statusBarItem.command = 'tempnote.togglePersistence';
+    statusBarItem.show();
     // 注册树视图提供者
     const treeViewDisposable = vscode.window.createTreeView('tempnoteExplorer', {
         treeDataProvider: tempNoteExplorer,
@@ -381,10 +396,14 @@ function activate(context) {
     const commands = [
         // 新建临时便签
         vscode.commands.registerCommand('tempnote.newTempNote', async () => {
-            await createAndOpenTempNote();
-            tempNoteExplorer.refresh();
+            // 修改为默认显示语言选择器
+            const language = await showLanguagePicker();
+            if (language) {
+                await createAndOpenTempNote(language);
+                tempNoteExplorer.refresh();
+            }
         }),
-        // 新建临时便签（选择语言）
+        // 新建临时便签（选择语言）- 保留此命令以兼容旧的快捷键
         vscode.commands.registerCommand('tempnote.newTempNoteWithLanguage', async () => {
             const language = await showLanguagePicker();
             if (language) {
@@ -460,12 +479,14 @@ function activate(context) {
         // 切换持久化模式
         vscode.commands.registerCommand('tempnote.togglePersistence', () => {
             tempNoteProvider.togglePersistence();
+            updateStatusBar();
             tempNoteExplorer.refresh();
         }),
     ];
     // 监听工作区配置变化
     const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(event => {
         if (event.affectsConfiguration('tempnote')) {
+            updateStatusBar();
             tempNoteExplorer.refresh();
         }
     });
@@ -475,11 +496,13 @@ function activate(context) {
         tempNoteProvider.loadFromDisk();
         tempNoteExplorer.refresh();
     });
-    context.subscriptions.push(treeViewDisposable, contextMenuDisposable, deleteKeyDisposable, configChangeDisposable, workspaceChangeDisposable, ...commands);
+    context.subscriptions.push(treeViewDisposable, contextMenuDisposable, deleteKeyDisposable, configChangeDisposable, workspaceChangeDisposable, statusBarItem, ...commands);
     // 显示激活消息
     const config = vscode.workspace.getConfiguration('tempnote');
-    const persistentMode = config.get('persistentMode', false);
-    vscode.window.showInformationMessage(`TempNote 已激活! ${persistentMode ? '持久化模式' : '临时模式'} - 按 Ctrl+Shift+T 创建便签`, '创建便签', '打开侧边栏').then(selection => {
+    const persistentMode = config.get('persistentMode', true);
+    const modeText = persistentMode ? '持久化模式' : '临时模式';
+    const modeIcon = persistentMode ? '$(save)' : '$(history)';
+    vscode.window.showInformationMessage(`TempNote 已激活! ${modeIcon} ${modeText} - 按 Ctrl+Shift+T 创建便签`, '创建便签', '打开侧边栏').then(selection => {
         if (selection === '创建便签') {
             vscode.commands.executeCommand('tempnote.newTempNote');
         }
@@ -552,4 +575,19 @@ function deactivate() {
     }
 }
 exports.deactivate = deactivate;
+// 更新状态栏显示
+function updateStatusBar() {
+    const config = vscode.workspace.getConfiguration('tempnote');
+    const persistentMode = config.get('persistentMode', true);
+    if (persistentMode) {
+        statusBarItem.text = '$(save) TempNote: 持久化模式';
+        statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        statusBarItem.tooltip = '点击切换到临时模式';
+    }
+    else {
+        statusBarItem.text = '$(history) TempNote: 临时模式';
+        statusBarItem.backgroundColor = undefined;
+        statusBarItem.tooltip = '点击切换到持久化模式';
+    }
+}
 //# sourceMappingURL=extension.js.map
