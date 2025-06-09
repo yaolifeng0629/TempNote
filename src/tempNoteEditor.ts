@@ -49,7 +49,7 @@ export class TempNoteEditorProvider {
         // 写入内容
         fs.writeFileSync(tempFilePath, content, 'utf8');
 
-        // 保存映射关系
+        // 保存映射关系 - 同时保存文件扩展名信息
         this.tempFiles.set(noteId, tempFilePath);
 
         // 返回文件URI
@@ -122,6 +122,7 @@ export class TempNoteEditorProvider {
             yaml: 'yml',
             markdown: 'md',
             sql: 'sql',
+            plaintext: 'txt'
         };
 
         return extensions[language] || 'txt';

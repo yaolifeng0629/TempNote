@@ -103,6 +103,17 @@
                 "command": "tempnote.togglePersistence",
                 "title": "切换持久化模式",
                 "icon": "$(save)"
+            },
+            {
+                "command": "tempnote.deleteKeyPressed",
+                "title": "删除选中的便签",
+                "category": "TempNote"
+            },
+            {
+                "command": "tempnote.contextMenu.delete",
+                "title": "删除便签",
+                "category": "TempNote",
+                "icon": "$(trash)"
             }
         ],
         "keybindings": [
@@ -116,6 +127,11 @@
                 "command": "tempnote.newTempNoteWithLanguage",
                 "key": "ctrl+shift+alt+t",
                 "mac": "cmd+shift+alt+t"
+            },
+            {
+                "command": "tempnote.deleteKeyPressed",
+                "key": "delete",
+                "when": "view == tempnoteExplorer && viewItem == tempNote && !inputFocus"
             }
         ],
         "menus": {
@@ -137,6 +153,14 @@
                 },
                 {
                     "command": "tempnote.togglePersistence"
+                },
+                {
+                    "command": "tempnote.deleteKeyPressed",
+                    "when": "false"
+                },
+                {
+                    "command": "tempnote.contextMenu.delete",
+                    "when": "false"
                 }
             ],
             "editor/title": [
@@ -183,6 +207,11 @@
                     "command": "tempnote.deleteNote",
                     "when": "view == tempnoteExplorer && viewItem == tempNote",
                     "group": "inline"
+                },
+                {
+                    "command": "tempnote.contextMenu.delete",
+                    "when": "view == tempnoteExplorer && viewItem == tempNote",
+                    "group": "1_modification"
                 }
             ]
         },

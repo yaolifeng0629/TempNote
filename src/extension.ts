@@ -157,7 +157,12 @@ class TempNoteProvider {
         // 删除实际的临时文件
         this.editorProvider.deleteTempNote(noteId);
 
-        this.tempNotes.delete(noteId);
+        // 确保从内存中删除
+        if (this.tempNotes.delete(noteId)) {
+            console.log(`便签 ${noteId} 已从内存中删除`);
+        } else {
+            console.warn(`便签 ${noteId} 不存在或删除失败`);
+        }
     }
 
     renameTempNote(noteId: string, newTitle: string): void {
@@ -289,7 +294,9 @@ class TempNoteProvider {
             fs.mkdirSync(storageDir, { recursive: true });
         }
 
-        const fileName = `${note.title.replace(/[<>:"/\\|?*]/g, '_')}.${this.getFileExtension(note.language)}`;
+        // 使用正确的文件扩展名
+        const extension = this.getFileExtension(note.language);
+        const fileName = `${note.title.replace(/[<>:"/\\|?*]/g, '_')}.${extension}`;
         const filePath = path.join(storageDir, fileName);
 
         const metadata = {
@@ -297,6 +304,7 @@ class TempNoteProvider {
             language: note.language,
             created: note.created,
             title: note.title,
+            extension: extension // 添加扩展名到元数据
         };
 
         const fileContent = `<!-- TempNote Metadata: ${JSON.stringify(metadata)} -->\n${note.content}`;
@@ -373,7 +381,67 @@ export function activate(context: vscode.ExtensionContext) {
     const treeViewDisposable = vscode.window.createTreeView('tempnoteExplorer', {
         treeDataProvider: tempNoteExplorer,
         showCollapseAll: false,
+        canSelectMany: false // 确保只能选择一个项目
     });
+
+    // 注册右键菜单命令
+    const contextMenuDisposable = vscode.commands.registerCommand('tempnote.contextMenu.delete', async (item: TempNoteItem) => {
+        if (item && item.noteData) {
+            await deleteNote(item);
+        }
+    });
+
+    // 注册删除键监听
+    const deleteKeyDisposable = vscode.commands.registerCommand('tempnote.deleteKeyPressed', async () => {
+        // 获取当前选中的项目
+        const selection = treeViewDisposable.selection;
+        if (selection.length > 0) {
+            // 获取第一个选中的项目
+            const selectedItem = selection[0];
+            // 执行删除操作
+            if (selectedItem) {
+                await deleteNote(selectedItem);
+            }
+        }
+    });
+
+    // 提取删除便签的通用函数
+    async function deleteNote(item: TempNoteItem): Promise<void> {
+        if (!item.noteData) {
+            vscode.window.showErrorMessage('无法获取便签数据');
+            return;
+        }
+
+        const result = await vscode.window.showWarningMessage(
+            `确定要删除便签 "${item.noteData.title}" 吗？`,
+            '确定',
+            '取消'
+        );
+
+        if (result === '确定') {
+            // 关闭对应的编辑器
+            const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs);
+            const targetTab = tabs.find(
+                tab =>
+                    tab.input instanceof vscode.TabInputText &&
+                    tab.input.uri.scheme === 'file' &&
+                    tab.input.uri.fsPath.includes(item.noteData!.id)
+            );
+
+            if (targetTab) {
+                await vscode.window.tabGroups.close(targetTab);
+            }
+
+            // 删除便签
+            tempNoteProvider.editorProvider.deleteTempNote(item.noteData.id);
+            tempNoteProvider.tempNotes.delete(item.noteData.id);
+
+            // 强制刷新视图
+            tempNoteExplorer.refresh();
+
+            vscode.window.showInformationMessage(`已删除便签 "${item.noteData.title}"`);
+        }
+    }
 
     // 注册命令
     const commands = [
@@ -444,38 +512,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         // 在 extension.ts 中，修复删除便签命令的部分
         vscode.commands.registerCommand('tempnote.deleteNote', async (item: TempNoteItem) => {
-            // 添加类型检查
-            if (!item.noteData) {
-                vscode.window.showErrorMessage('无法获取便签数据');
-                return;
-            }
-
-            const result = await vscode.window.showWarningMessage(
-                `确定要删除便签 "${item.noteData.title}" 吗？`,
-                '确定',
-                '取消'
-            );
-
-            if (result === '确定') {
-                // 关闭对应的编辑器 - 现在需要查找实际文件
-                const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs);
-                const targetTab = tabs.find(
-                    tab =>
-                        tab.input instanceof vscode.TabInputText &&
-                        tab.input.uri.scheme === 'file' &&
-                        tab.input.uri.fsPath.includes(item.noteData!.id)
-                );
-
-                if (targetTab) {
-                    await vscode.window.tabGroups.close(targetTab);
-                }
-
-                // 删除便签
-                tempNoteProvider.editorProvider.deleteTempNote(item.noteData.id);
-                tempNoteProvider.tempNotes.delete(item.noteData.id);
-                tempNoteExplorer.refresh();
-                vscode.window.showInformationMessage(`已删除便签 "${item.noteData.title}"`);
-            }
+            await deleteNote(item);
         }),
 
         // 修复重命名便签命令的部分
@@ -530,6 +567,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         treeViewDisposable,
+        contextMenuDisposable,
+        deleteKeyDisposable,
         configChangeDisposable,
         workspaceChangeDisposable,
         ...commands
