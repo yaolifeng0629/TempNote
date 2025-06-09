@@ -27,369 +27,7 @@ exports.deactivate = exports.activate = void 0;
 const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
-class TempNoteProvider {
-    context;
-    _onDidChange = new vscode.EventEmitter();
-    onDidChange = this._onDidChange.event;
-    tempNotes = new Map();
-    noteCounter = 1;
-    constructor(context) {
-        this.context = context;
-    }
-    provideTextDocumentContent(uri) {
-        const noteId = uri.path.substring(1);
-        const note = this.tempNotes.get(noteId);
-        return note ? note.content : '';
-    }
-    createTempNote(language, initialContent, title) {
-        const config = vscode.workspace.getConfiguration('tempnote');
-        const defaultLanguage = config.get('defaultLanguage', 'plaintext');
-        const showWelcome = config.get('showWelcomeText', true);
-        const autoNumber = config.get('autoNumber', true);
-        const persistentMode = config.get('persistentMode', false);
-        const selectedLanguage = language || defaultLanguage;
-        const noteId = autoNumber ? `temp-note-${this.noteCounter++}` : `temp-note-${Date.now()}`;
-        const noteTitle = title || `临时便签 ${this.noteCounter - 1}`;
-        let content = initialContent || '';
-        if (!initialContent && showWelcome) {
-            content = this.getWelcomeText(selectedLanguage);
-        }
-        const noteData = {
-            id: noteId,
-            content: content,
-            language: selectedLanguage,
-            created: Date.now(),
-            title: noteTitle,
-            persistent: persistentMode,
-        };
-        this.tempNotes.set(noteId, noteData);
-        // 如果启用了持久化模式，保存到磁盘
-        if (persistentMode) {
-            this.saveToDisk(noteData);
-        }
-        const uri = vscode.Uri.parse(`tempnote:${noteId}`);
-        return uri;
-    }
-    updateTempNote(uri, content) {
-        const noteId = uri.path.substring(1);
-        const note = this.tempNotes.get(noteId);
-        if (note) {
-            note.content = content;
-            this._onDidChange.fire(uri);
-            // 如果是持久化的便签，保存到磁盘
-            if (note.persistent) {
-                this.saveToDisk(note);
-            }
-        }
-    }
-    deleteTempNote(uri) {
-        const noteId = uri.path.substring(1);
-        const note = this.tempNotes.get(noteId);
-        if (note && note.persistent) {
-            this.deleteFromDisk(note);
-        }
-        this.tempNotes.delete(noteId);
-    }
-    renameTempNote(noteId, newTitle) {
-        const note = this.tempNotes.get(noteId);
-        if (note) {
-            const oldTitle = note.title;
-            note.title = newTitle;
-            if (note.persistent) {
-                this.deleteFromDisk({ ...note, title: oldTitle });
-                this.saveToDisk(note);
-            }
-        }
-    }
-    clearAllTempNotes() {
-        // 清除持久化的便签
-        for (const note of this.tempNotes.values()) {
-            if (note.persistent) {
-                this.deleteFromDisk(note);
-            }
-        }
-        this.tempNotes.clear();
-        this.noteCounter = 1;
-    }
-    getAllTempNotes() {
-        return Array.from(this.tempNotes.values());
-    }
-    togglePersistence() {
-        const config = vscode.workspace.getConfiguration('tempnote');
-        const currentMode = config.get('persistentMode', false);
-        config.update('persistentMode', !currentMode, vscode.ConfigurationTarget.Workspace);
-        const newMode = !currentMode;
-        // 更新现有便签的持久化状态
-        for (const note of this.tempNotes.values()) {
-            if (newMode && !note.persistent) {
-                // 从临时模式切换到持久化模式
-                note.persistent = true;
-                this.saveToDisk(note);
-            }
-            else if (!newMode && note.persistent) {
-                // 从持久化模式切换到临时模式
-                note.persistent = false;
-                this.deleteFromDisk(note);
-            }
-        }
-        vscode.window.showInformationMessage(`已${newMode ? '启用' : '禁用'}持久化模式`);
-    }
-    saveToDisk(note) {
-        if (!vscode.workspace.workspaceFolders) {
-            return;
-        }
-        const config = vscode.workspace.getConfiguration('tempnote');
-        const storageLocation = config.get('storageLocation', '.vscode/tempnotes');
-        const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
-        const storageDir = path.join(workspaceRoot, storageLocation);
-        // 确保存储目录存在
-        if (!fs.existsSync(storageDir)) {
-            fs.mkdirSync(storageDir, { recursive: true });
-        }
-        const fileName = `${note.title.replace(/[<>:"/\\|?*]/g, '_')}.${this.getFileExtension(note.language)}`;
-        const filePath = path.join(storageDir, fileName);
-        const metadata = {
-            id: note.id,
-            language: note.language,
-            created: note.created,
-            title: note.title,
-        };
-        const fileContent = `<!-- TempNote Metadata: ${JSON.stringify(metadata)} -->\n${note.content}`;
-        try {
-            fs.writeFileSync(filePath, fileContent, 'utf8');
-        }
-        catch (error) {
-            vscode.window.showErrorMessage(`保存便签失败: ${error}`);
-        }
-    }
-    deleteFromDisk(note) {
-        if (!vscode.workspace.workspaceFolders) {
-            return;
-        }
-        const config = vscode.workspace.getConfiguration('tempnote');
-        const storageLocation = config.get('storageLocation', '.vscode/tempnotes');
-        const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
-        const storageDir = path.join(workspaceRoot, storageLocation);
-        const fileName = `${note.title.replace(/[<>:"/\\|?*]/g, '_')}.${this.getFileExtension(note.language)}`;
-        const filePath = path.join(storageDir, fileName);
-        try {
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-            }
-        }
-        catch (error) {
-            vscode.window.showErrorMessage(`删除便签文件失败: ${error}`);
-        }
-    }
-    loadFromDisk() {
-        if (!vscode.workspace.workspaceFolders) {
-            return;
-        }
-        const config = vscode.workspace.getConfiguration('tempnote');
-        const storageLocation = config.get('storageLocation', '.vscode/tempnotes');
-        const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
-        const storageDir = path.join(workspaceRoot, storageLocation);
-        if (!fs.existsSync(storageDir)) {
-            return;
-        }
-        try {
-            const files = fs.readdirSync(storageDir);
-            for (const file of files) {
-                const filePath = path.join(storageDir, file);
-                const content = fs.readFileSync(filePath, 'utf8');
-                // 解析元数据
-                const metadataMatch = content.match(/<!-- TempNote Metadata: (.*?) -->/);
-                if (metadataMatch) {
-                    try {
-                        const metadata = JSON.parse(metadataMatch[1]);
-                        const noteContent = content.replace(/<!-- TempNote Metadata: .*? -->\n/, '');
-                        const noteData = {
-                            id: metadata.id,
-                            content: noteContent,
-                            language: metadata.language,
-                            created: metadata.created,
-                            title: metadata.title,
-                            persistent: true,
-                        };
-                        this.tempNotes.set(metadata.id, noteData);
-                        // 更新计数器
-                        const match = metadata.id.match(/temp-note-(\d+)/);
-                        if (match) {
-                            const num = parseInt(match[1]);
-                            if (num >= this.noteCounter) {
-                                this.noteCounter = num + 1;
-                            }
-                        }
-                    }
-                    catch (parseError) {
-                        console.warn(`解析便签元数据失败: ${file}`, parseError);
-                    }
-                }
-            }
-        }
-        catch (error) {
-            vscode.window.showWarningMessage(`加载持久化便签失败: ${error}`);
-        }
-    }
-    getFileExtension(language) {
-        const extensions = {
-            javascript: 'js',
-            typescript: 'ts',
-            python: 'py',
-            java: 'java',
-            cpp: 'cpp',
-            csharp: 'cs',
-            go: 'go',
-            rust: 'rs',
-            php: 'php',
-            html: 'html',
-            css: 'css',
-            json: 'json',
-            xml: 'xml',
-            yaml: 'yml',
-            markdown: 'md',
-            sql: 'sql',
-        };
-        return extensions[language] || 'txt';
-    }
-    getWelcomeText(language) {
-        const timestamp = new Date().toLocaleString('zh-CN');
-        const config = vscode.workspace.getConfiguration('tempnote');
-        const persistentMode = config.get('persistentMode', false);
-        const persistentInfo = persistentMode
-            ? '这是一个持久化便签，会保存到项目中直到手动删除。'
-            : '这是一个临时文件，关闭 VS Code 后内容会自动清空。';
-        const welcomeTexts = {
-            plaintext: `# 临时便签
-创建时间: ${timestamp}
-
-${persistentInfo}
-你可以在这里：
-- 记录临时想法
-- 粘贴临时数据
-- 做简单的笔记
-- 测试文本处理
-
-快捷键：
-- Ctrl+Shift+T (新建临时便签)
-- Ctrl+Shift+Alt+T (选择语言新建)
-`,
-            javascript: `// 临时 JavaScript 便签
-// 创建时间: ${timestamp}
-
-console.log('Hello from temp note!');
-
-// ${persistentInfo}
-// 在这里测试你的 JavaScript 代码
-
-function tempFunction() {
-    // 你的代码...
-}
-`,
-            typescript: `// 临时 TypeScript 便签
-// 创建时间: ${timestamp}
-
-interface TempInterface {
-    name: string;
-    value: number;
-}
-
-console.log('Hello from temp TypeScript note!');
-
-// ${persistentInfo}
-// 在这里测试你的 TypeScript 代码
-`,
-            python: `# 临时 Python 便签
-# 创建时间: ${timestamp}
-
-print("Hello from temp Python note!")
-
-# ${persistentInfo}
-# 在这里测试你的 Python 代码
-
-def temp_function():
-    # 你的代码...
-    pass
-`,
-            markdown: `# 临时 Markdown 便签
-
-**创建时间**: ${timestamp}
-
-${persistentInfo}
-
-## 你可以在这里：
-
-- [ ] 记录待办事项
-- [ ] 写临时的文档
-- [ ] 测试 Markdown 语法
-
-### 代码示例
-
-\`\`\`javascript
-console.log('Hello World!');
-\`\`\`
-
-> 这是一个引用块
-`,
-            json: `{
-  "note": "临时 JSON 便签",
-  "created": "${timestamp}",
-  "description": "${persistentInfo}",
-  "data": {
-    "example": "value",
-    "number": 123,
-    "boolean": true,
-    "array": [1, 2, 3],
-    "nested": {
-      "key": "value"
-    }
-  }
-}`,
-            html: `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>临时HTML便签</title>
-</head>
-<body>
-    <h1>临时 HTML 便签</h1>
-    <p>创建时间: ${timestamp}</p>
-    <p>${persistentInfo}</p>
-
-    <!-- 在这里编写你的 HTML 代码 -->
-
-</body>
-</html>`,
-            css: `/* 临时 CSS 便签 */
-/* 创建时间: ${timestamp} */
-
-/* ${persistentInfo} */
-
-.temp-class {
-    color: #333;
-    font-size: 16px;
-    padding: 10px;
-    margin: 5px;
-}
-
-/* 在这里编写你的 CSS 代码 */
-`,
-            sql: `-- 临时 SQL 便签
--- 创建时间: ${timestamp}
-
--- ${persistentInfo}
-
-SELECT
-    'Hello from temp SQL note!' as message,
-    NOW() as current_time;
-
--- 在这里编写你的 SQL 代码
-`,
-        };
-        return welcomeTexts[language] || welcomeTexts['plaintext'];
-    }
-}
+const tempNoteEditor_1 = require("./tempNoteEditor");
 class TempNoteExplorer {
     tempNoteProvider;
     _onDidChangeTreeData = new vscode.EventEmitter();
@@ -449,6 +87,228 @@ class TempNoteExplorer {
         return new vscode.ThemeIcon(iconMap[language] || 'file-text');
     }
 }
+// 使用原来的TempNoteProvider来保持与现有代码的兼容性
+class TempNoteProvider {
+    context;
+    tempNotes = new Map();
+    noteCounter = 1;
+    editorProvider;
+    constructor(context) {
+        this.context = context;
+        this.editorProvider = new tempNoteEditor_1.TempNoteEditorProvider(context);
+    }
+    async createTempNote(language, initialContent, title) {
+        const config = vscode.workspace.getConfiguration('tempnote');
+        const defaultLanguage = config.get('defaultLanguage', 'plaintext');
+        const autoNumber = config.get('autoNumber', true);
+        const persistentMode = config.get('persistentMode', false);
+        const selectedLanguage = language || defaultLanguage;
+        const noteId = autoNumber ? `temp-note-${this.noteCounter++}` : `temp-note-${Date.now()}`;
+        const noteTitle = title || `临时便签 ${this.noteCounter - 1}`;
+        // 使用编辑器提供者创建实际的文件
+        const uri = await this.editorProvider.createTempNote(selectedLanguage, initialContent, noteTitle);
+        // 保存便签数据以便在树视图中显示
+        const noteData = {
+            id: noteId,
+            content: initialContent || '',
+            language: selectedLanguage,
+            created: Date.now(),
+            title: noteTitle,
+            persistent: persistentMode,
+        };
+        this.tempNotes.set(noteId, noteData);
+        // 如果启用了持久化模式，保存到磁盘
+        if (persistentMode) {
+            this.saveToDisk(noteData);
+        }
+        return uri;
+    }
+    updateTempNote(uri, content) {
+        const noteId = path.basename(uri.fsPath).split('.')[0];
+        const note = this.tempNotes.get(noteId);
+        if (note) {
+            note.content = content;
+            // 如果是持久化的便签，保存到磁盘
+            if (note.persistent) {
+                this.saveToDisk(note);
+            }
+        }
+    }
+    deleteTempNote(uri) {
+        const noteId = path.basename(uri.fsPath).split('.')[0];
+        const note = this.tempNotes.get(noteId);
+        if (note && note.persistent) {
+            this.deleteFromDisk(note);
+        }
+        // 删除实际的临时文件
+        this.editorProvider.deleteTempNote(noteId);
+        this.tempNotes.delete(noteId);
+    }
+    renameTempNote(noteId, newTitle) {
+        const note = this.tempNotes.get(noteId);
+        if (note) {
+            const oldTitle = note.title;
+            note.title = newTitle;
+            if (note.persistent) {
+                this.deleteFromDisk(note);
+                this.saveToDisk(note);
+            }
+        }
+    }
+    clearAllTempNotes() {
+        // 清除持久化的便签
+        for (const note of this.tempNotes.values()) {
+            if (note.persistent) {
+                this.deleteFromDisk(note);
+            }
+        }
+        // 清除所有临时文件
+        this.editorProvider.clearAllTempNotes();
+        this.tempNotes.clear();
+        this.noteCounter = 1;
+    }
+    getAllTempNotes() {
+        return Array.from(this.tempNotes.values());
+    }
+    togglePersistence() {
+        const config = vscode.workspace.getConfiguration('tempnote');
+        const currentMode = config.get('persistentMode', false);
+        config.update('persistentMode', !currentMode, vscode.ConfigurationTarget.Workspace);
+        const newMode = !currentMode;
+        // 更新现有便签的持久化状态
+        for (const note of this.tempNotes.values()) {
+            if (newMode && !note.persistent) {
+                // 从临时模式切换到持久化模式
+                note.persistent = true;
+                this.saveToDisk(note);
+            }
+            else if (!newMode && note.persistent) {
+                // 从持久化模式切换到临时模式
+                note.persistent = false;
+                this.deleteFromDisk(note);
+            }
+        }
+        vscode.window.showInformationMessage(`已${newMode ? '启用' : '禁用'}持久化模式`);
+    }
+    loadFromDisk() {
+        if (!vscode.workspace.workspaceFolders) {
+            return;
+        }
+        const config = vscode.workspace.getConfiguration('tempnote');
+        const storageLocation = config.get('storageLocation', '.vscode/tempnotes');
+        const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        const storageDir = path.join(workspaceRoot, storageLocation);
+        if (!fs.existsSync(storageDir)) {
+            return;
+        }
+        try {
+            const files = fs.readdirSync(storageDir);
+            for (const file of files) {
+                const filePath = path.join(storageDir, file);
+                const content = fs.readFileSync(filePath, 'utf8');
+                // 解析元数据
+                const metadataMatch = content.match(/<!-- TempNote Metadata: (.*?) -->/);
+                if (metadataMatch) {
+                    try {
+                        const metadata = JSON.parse(metadataMatch[1]);
+                        const noteContent = content.replace(/<!-- TempNote Metadata: .*? -->\n/, '');
+                        const noteData = {
+                            id: metadata.id,
+                            content: noteContent,
+                            language: metadata.language,
+                            created: metadata.created,
+                            title: metadata.title,
+                            persistent: true,
+                        };
+                        this.tempNotes.set(metadata.id, noteData);
+                        // 更新计数器
+                        const match = metadata.id.match(/temp-note-(\d+)/);
+                        if (match) {
+                            const num = parseInt(match[1]);
+                            if (num >= this.noteCounter) {
+                                this.noteCounter = num + 1;
+                            }
+                        }
+                    }
+                    catch (parseError) {
+                        console.warn(`解析便签元数据失败: ${file}`, parseError);
+                    }
+                }
+            }
+        }
+        catch (error) {
+            vscode.window.showWarningMessage(`加载持久化便签失败: ${error}`);
+        }
+    }
+    saveToDisk(note) {
+        if (!vscode.workspace.workspaceFolders) {
+            return;
+        }
+        const config = vscode.workspace.getConfiguration('tempnote');
+        const storageLocation = config.get('storageLocation', '.vscode/tempnotes');
+        const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        const storageDir = path.join(workspaceRoot, storageLocation);
+        // 确保存储目录存在
+        if (!fs.existsSync(storageDir)) {
+            fs.mkdirSync(storageDir, { recursive: true });
+        }
+        const fileName = `${note.title.replace(/[<>:"/\\|?*]/g, '_')}.${this.getFileExtension(note.language)}`;
+        const filePath = path.join(storageDir, fileName);
+        const metadata = {
+            id: note.id,
+            language: note.language,
+            created: note.created,
+            title: note.title,
+        };
+        const fileContent = `<!-- TempNote Metadata: ${JSON.stringify(metadata)} -->\n${note.content}`;
+        try {
+            fs.writeFileSync(filePath, fileContent, 'utf8');
+        }
+        catch (error) {
+            vscode.window.showErrorMessage(`保存便签失败: ${error}`);
+        }
+    }
+    deleteFromDisk(note) {
+        if (!vscode.workspace.workspaceFolders) {
+            return;
+        }
+        const config = vscode.workspace.getConfiguration('tempnote');
+        const storageLocation = config.get('storageLocation', '.vscode/tempnotes');
+        const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        const storageDir = path.join(workspaceRoot, storageLocation);
+        const fileName = `${note.title.replace(/[<>:"/\\|?*]/g, '_')}.${this.getFileExtension(note.language)}`;
+        const filePath = path.join(storageDir, fileName);
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        }
+        catch (error) {
+            vscode.window.showErrorMessage(`删除便签文件失败: ${error}`);
+        }
+    }
+    getFileExtension(language) {
+        const extensions = {
+            javascript: 'js',
+            typescript: 'ts',
+            python: 'py',
+            java: 'java',
+            cpp: 'cpp',
+            csharp: 'cs',
+            go: 'go',
+            rust: 'rs',
+            php: 'php',
+            html: 'html',
+            css: 'css',
+            json: 'json',
+            xml: 'xml',
+            yaml: 'yml',
+            markdown: 'md',
+            sql: 'sql',
+        };
+        return extensions[language] || 'txt';
+    }
+}
 let tempNoteProvider;
 let tempNoteExplorer;
 function activate(context) {
@@ -459,8 +319,6 @@ function activate(context) {
     tempNoteProvider.loadFromDisk();
     // 创建侧边栏浏览器
     tempNoteExplorer = new TempNoteExplorer(tempNoteProvider);
-    // 注册内容提供者
-    const providerDisposable = vscode.workspace.registerTextDocumentContentProvider('tempnote', tempNoteProvider);
     // 注册树视图提供者
     const treeViewDisposable = vscode.window.createTreeView('tempnoteExplorer', {
         treeDataProvider: tempNoteExplorer,
@@ -497,7 +355,8 @@ function activate(context) {
             if (result === '确定') {
                 // 关闭所有临时便签编辑器
                 const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs);
-                const tempNoteTabs = tabs.filter(tab => tab.input instanceof vscode.TabInputText && tab.input.uri.scheme === 'tempnote');
+                const tempNoteTabs = tabs.filter(tab => tab.input instanceof vscode.TabInputText && tab.input.uri.scheme === 'file' &&
+                    tab.input.uri.fsPath.includes('vscode-tempnote'));
                 for (const tab of tempNoteTabs) {
                     await vscode.window.tabGroups.close(tab);
                 }
@@ -512,9 +371,8 @@ function activate(context) {
         }),
         // 打开便签
         vscode.commands.registerCommand('tempnote.openNote', async (noteId) => {
-            const uri = vscode.Uri.parse(`tempnote:${noteId}`);
-            const document = await vscode.workspace.openTextDocument(uri);
-            await vscode.window.showTextDocument(document, vscode.ViewColumn.Active);
+            // 使用编辑器提供者打开便签
+            await tempNoteProvider.editorProvider.openTempNote(noteId);
         }),
         // 在 extension.ts 中，修复删除便签命令的部分
         vscode.commands.registerCommand('tempnote.deleteNote', async (item) => {
@@ -525,17 +383,17 @@ function activate(context) {
             }
             const result = await vscode.window.showWarningMessage(`确定要删除便签 "${item.noteData.title}" 吗？`, '确定', '取消');
             if (result === '确定') {
-                // 关闭对应的编辑器
+                // 关闭对应的编辑器 - 现在需要查找实际文件
                 const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs);
                 const targetTab = tabs.find(tab => tab.input instanceof vscode.TabInputText &&
-                    tab.input.uri.scheme === 'tempnote' &&
-                    tab.input.uri.path.includes(item.noteData.id) // 使用非空断言，因为我们已经检查过了
-                );
+                    tab.input.uri.scheme === 'file' &&
+                    tab.input.uri.fsPath.includes(item.noteData.id));
                 if (targetTab) {
                     await vscode.window.tabGroups.close(targetTab);
                 }
-                const uri = vscode.Uri.parse(`tempnote:${item.noteData.id}`);
-                tempNoteProvider.deleteTempNote(uri);
+                // 删除便签
+                tempNoteProvider.editorProvider.deleteTempNote(item.noteData.id);
+                tempNoteProvider.tempNotes.delete(item.noteData.id);
                 tempNoteExplorer.refresh();
                 vscode.window.showInformationMessage(`已删除便签 "${item.noteData.title}"`);
             }
@@ -572,31 +430,6 @@ function activate(context) {
             tempNoteExplorer.refresh();
         }),
     ];
-    // 监听文档变化
-    const changeDisposable = vscode.workspace.onDidChangeTextDocument(event => {
-        if (event.document.uri.scheme === 'tempnote') {
-            tempNoteProvider.updateTempNote(event.document.uri, event.document.getText());
-        }
-    });
-    // 监听标签页关闭
-    const tabChangeDisposable = vscode.window.tabGroups.onDidChangeTabs(event => {
-        let needRefresh = false;
-        for (const tab of event.closed) {
-            if (tab.input instanceof vscode.TabInputText && tab.input.uri.scheme === 'tempnote') {
-                // 检查便签是否为临时模式，如果是则删除
-                const noteId = tab.input.uri.path.substring(1);
-                const notes = tempNoteProvider.getAllTempNotes();
-                const note = notes.find(n => n.id === noteId);
-                if (note && !note.persistent) {
-                    tempNoteProvider.deleteTempNote(tab.input.uri);
-                    needRefresh = true;
-                }
-            }
-        }
-        if (needRefresh) {
-            tempNoteExplorer.refresh();
-        }
-    });
     // 监听工作区配置变化
     const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(event => {
         if (event.affectsConfiguration('tempnote')) {
@@ -609,13 +442,11 @@ function activate(context) {
         tempNoteProvider.loadFromDisk();
         tempNoteExplorer.refresh();
     });
-    context.subscriptions.push(providerDisposable, treeViewDisposable, changeDisposable, tabChangeDisposable, configChangeDisposable, workspaceChangeDisposable, ...commands);
+    context.subscriptions.push(treeViewDisposable, configChangeDisposable, workspaceChangeDisposable, ...commands);
     // 显示激活消息
     const config = vscode.workspace.getConfiguration('tempnote');
     const persistentMode = config.get('persistentMode', false);
-    vscode.window
-        .showInformationMessage(`TempNote 已激活! ${persistentMode ? '持久化模式' : '临时模式'} - 按 Ctrl+Shift+T 创建便签`, '创建便签', '打开侧边栏')
-        .then(selection => {
+    vscode.window.showInformationMessage(`TempNote 已激活! ${persistentMode ? '持久化模式' : '临时模式'} - 按 Ctrl+Shift+T 创建便签`, '创建便签', '打开侧边栏').then(selection => {
         if (selection === '创建便签') {
             vscode.commands.executeCommand('tempnote.newTempNote');
         }
@@ -627,11 +458,12 @@ function activate(context) {
 exports.activate = activate;
 async function createAndOpenTempNote(language, title) {
     try {
-        const uri = tempNoteProvider.createTempNote(language, undefined, title);
+        const uri = await tempNoteProvider.createTempNote(language, undefined, title);
         const document = await vscode.workspace.openTextDocument(uri);
         const editor = await vscode.window.showTextDocument(document, vscode.ViewColumn.Active);
         // 设置语言模式
-        const noteData = tempNoteProvider.getAllTempNotes().find(note => uri.path.includes(note.id));
+        const noteId = path.basename(uri.fsPath).split('.')[0]; // 从文件名中获取noteId
+        const noteData = tempNoteProvider.getAllTempNotes().find(note => note.id === noteId);
         if (noteData && noteData.language !== 'plaintext') {
             await vscode.languages.setTextDocumentLanguage(document, noteData.language);
         }
@@ -680,8 +512,7 @@ function deactivate() {
             const notes = tempNoteProvider.getAllTempNotes();
             for (const note of notes) {
                 if (!note.persistent) {
-                    const uri = vscode.Uri.parse(`tempnote:${note.id}`);
-                    tempNoteProvider.deleteTempNote(uri);
+                    tempNoteProvider.editorProvider.deleteTempNote(note.id);
                 }
             }
         }
