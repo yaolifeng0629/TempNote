@@ -62,18 +62,6 @@
                 "icon": "$(file-code)"
             },
             {
-                "command": "tempnote.newTempMarkdown",
-                "title": "新建临时Markdown",
-                "category": "TempNote",
-                "icon": "$(markdown)"
-            },
-            {
-                "command": "tempnote.newTempJSON",
-                "title": "新建临时JSON",
-                "category": "TempNote",
-                "icon": "$(json)"
-            },
-            {
                 "command": "tempnote.clearAllTempNotes",
                 "title": "清空所有临时便签",
                 "category": "TempNote",
@@ -143,12 +131,6 @@
                     "command": "tempnote.newTempNoteWithLanguage"
                 },
                 {
-                    "command": "tempnote.newTempMarkdown"
-                },
-                {
-                    "command": "tempnote.newTempJSON"
-                },
-                {
                     "command": "tempnote.clearAllTempNotes"
                 },
                 {
@@ -183,6 +165,11 @@
                 },
                 {
                     "command": "tempnote.refreshExplorer",
+                    "when": "view == tempnoteExplorer",
+                    "group": "navigation"
+                },
+                {
+                    "command": "tempnote.clearAllTempNotes",
                     "when": "view == tempnoteExplorer",
                     "group": "navigation"
                 },
