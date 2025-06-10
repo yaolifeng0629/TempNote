@@ -202,17 +202,6 @@ class TempNoteEditorProvider {
         const welcomeTexts = {
             plaintext: `# 临时便签
 创建时间: ${timestamp}
-
-${persistentInfo}
-你可以在这里：
-- 记录临时想法
-- 粘贴临时数据
-- 做简单的笔记
-- 测试文本处理
-
-快捷键：
-- Ctrl+Shift+T (新建临时便签)
-- Ctrl+Shift+Alt+T (选择语言新建)
 `,
             javascript: `// 临时 JavaScript 便签
 // 创建时间: ${timestamp}
@@ -295,7 +284,6 @@ console.log('Hello World!');
 <body>
     <h1>临时 HTML 便签</h1>
     <p>创建时间: ${timestamp}</p>
-    <p>${persistentInfo}</p>
 
     <!-- 在这里编写你的 HTML 代码 -->
 
