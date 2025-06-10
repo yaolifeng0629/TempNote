@@ -612,7 +612,7 @@ export function activate(context: vscode.ExtensionContext) {
     const modeIcon = persistentMode ? '$(save)' : '$(history)';
 
     vscode.window.showInformationMessage(
-        `TempNote 已激活! ${modeIcon} ${modeText} - 按 Ctrl+Shift+T 创建便签`,
+        `TempNote 已激活! 按 Ctrl+Shift+T 创建便签`,
         '创建便签',
         '打开侧边栏'
     ).then(selection => {
