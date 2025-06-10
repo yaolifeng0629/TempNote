@@ -53,7 +53,6 @@
 | 快捷键             | 功能                 |
 | ------------------ | -------------------- |
 | `Ctrl+Shift+T`     | 创建新的临时便签     |
-| `Ctrl+Shift+Alt+T` | 选择语言创建临时便签 |
 
 _Mac 用户请将 Ctrl 替换为 Cmd_
 
@@ -109,12 +108,6 @@ _Mac 用户请将 Ctrl 替换为 Cmd_
 -   **语言标识**: 显示便签的编程语言类型
 -   **创建时间**: 鼠标悬停显示详细信息
 
-### 右键菜单
-
--   **打开便签**: 在编辑器中打开选中的便签
--   **重命名**: 修改便签的标题
--   **删除**: 删除选中的便签（会确认）
-
 ### 工具栏按钮
 
 -   **新建**: 快速创建新的临时便签
@@ -128,7 +121,6 @@ _Mac 用户请将 Ctrl 替换为 Cmd_
 
 ```json
 {
-    "tempnote.defaultLanguage": "plaintext", // 默认语言
     "tempnote.showWelcomeText": true, // 显示欢迎文本
     "tempnote.autoNumber": true, // 自动编号
     "tempnote.persistentMode": false, // 持久化模式
